@@ -1,12 +1,10 @@
 
 import numpy as np
 from scipy.integrate import solve_ivp
-import plotly.graph_objects as go
-import plotly.colors as colors
 
 import expt_data.data as expt_data
 from constants import get_const
-from ode_function import odefunc
+from code.ode_function import odefunc
 
 
 def solve_ODE(data_: expt_data.Data, k: np.ndarray, t: np.ndarray = None) -> np.ndarray:

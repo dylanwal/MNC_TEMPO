@@ -6,7 +6,7 @@ from scipy.integrate import solve_ivp
 from particle_swarm import particle_swarm_optimization
 from constants import get_const
 import expt_data.data as expt_data
-from ode_function import odefunc
+from code.ode_function import odefunc
 
 
 def objective(
@@ -67,7 +67,7 @@ def main():
     ))
     best_k = particle_swarm_optimization(
         objective,
-        2000,
+        20,
         bounds.flatten(),
         args=(y0_, expt_data.ALL_DATA, const_, expt_data.get_group_duplicate_datasets(expt_data.ALL_DATA)),
         max_iter=40,
