@@ -1,6 +1,7 @@
 from typing import Callable, Iterable
 import logging
 import multiprocessing as mp
+import copy
 
 import numpy as np
 
@@ -79,13 +80,21 @@ def _calculate_starting_position_and_velocity(
         rng: np.random.Generator
 ) -> tuple[np.ndarray, np.ndarray]:
     from scipy.stats import qmc
-    dim = len(bounds) // 2
-    sampler = qmc.Sobol(d=dim, seed=rng)
-    x = sampler.random_base2(int(np.ceil(np.log2(number_of_particles))))[:number_of_particles]
-    for i in range(dim):
-        x[:, i] = _rescale(x[:, i], bounds[2 * i:2 * i + 2])
 
-    v = rng.normal(0, 0.5, size=(number_of_particles, dim))
+    dim = bounds.shape[0] // 2
+    assert bounds.shape == (2 * dim,), "Bounds should be a flat array of shape (2 * dim,)"
+
+    sampler = qmc.Sobol(d=dim, seed=rng)
+    n_samples = 2 ** int(np.ceil(np.log2(number_of_particles)))
+    x_unit = sampler.random_base2(m=int(np.log2(n_samples)))
+    x_unit = x_unit[:number_of_particles]
+
+    # Rescale to bounds using vectorized transformation
+    bounds = bounds.reshape(dim, 2)
+    lower, upper = bounds[:, 0], bounds[:, 1]
+    x = lower + (upper - lower) * x_unit  # broadcasted rescaling
+
+    v = rng.normal(loc=0, scale= 0.5, size=(number_of_particles, dim))
     return x, v
 
 
@@ -116,30 +125,34 @@ def _get_best_particle(swarm: Swarm) -> Particle:
 
 
 def _remove_similar_particles(swarm: Swarm, min_distance: float = 0.001):
+    if swarm.number_alive() <= 1:
+        return
+
     particles = list(swarm.iter_alive())
-    particle_vectors = np.array([np.hstack((particles.x, particles.v)) for particles in particles])
-    removed = 0
+    position = np.array([np.hstack((p.x, p.v)) for p in particles])
+    normalized_position = (position - np.mean(position, axis=0)) / np.std(position, axis=0)
+
+    alive_mask = np.ones(len(particles), dtype=bool)
+
     for i in range(len(particles)):
-        if len(particle_vectors) == 1:
-            break
-        i -= removed
-        distance = np.linalg.norm(particle_vectors[i] - particle_vectors, axis=1)
-        distance.sort()
-        if distance[1] < min_distance:  # the first distance is a self match
-            particles[i].alive = False
-            particle_vectors = np.delete(particle_vectors, i, axis=0)
-            removed += 1
+        if not alive_mask[i]:
+            continue
+        dists = np.linalg.norm(normalized_position[i] - normalized_position, axis=1)
+        # Ignore self by setting a high value at self index
+        dists[i] = np.inf
+        j = np.argmin(dists)
+        if dists[j] < min_distance:
+            alive_mask[j] = False
+
+    for i, keep in enumerate(alive_mask):
+        particles[i].alive = keep
 
 
-def _check_bounds(x: np.ndarray, bounds: np.array) -> np.ndarray:
-    # limit x values to within bounds
-    for i in range(len(x)):
-        if x[i] < bounds[2*i]:
-            x[i] = bounds[2*i]
-        if x[i] > bounds[2*i + 1]:
-            x[i] = bounds[2*i + 1]
-
-    return x
+def _check_bounds(x: np.ndarray, bounds: np.ndarray) -> np.ndarray:
+    """Clamp x to stay within the provided bounds (flat array format: [low0, high0, low1, high1, ...])."""
+    dim = len(x)
+    bounds = bounds.reshape(dim, 2)
+    return np.clip(x, bounds[:, 0], bounds[:, 1])
 
 
 def particle_swarm_optimization(
@@ -154,7 +167,7 @@ def particle_swarm_optimization(
         rng: np.random.Generator = np.random.default_rng(seed=0),
         stagnation_iters: int = 5,
         stagnation_tol: float = 1e-6,
-        pruning_distance: float = 0.001,
+        pruning_distance: float = 1,
         output: str | None = None,
         logging_level: int = logging.INFO,
         multiprocess: bool | int = False
@@ -226,11 +239,11 @@ def particle_swarm_optimization(
     logger.debug(f"-1 | {best_particle.obj:0.6e} | {best_particle.id_} | {best_particle.x} | {swarm.number_alive()}")
 
     stagnation_count = 0
-    prev_best_particle = best_particle
+    prev_best_particle = copy.deepcopy(best_particle)
     for i in range(max_iter):
         # update position and velocity
         r1, r2 = rng.random(2)
-        best_particle_x = best_particle.x_best
+        best_particle_x = prev_best_particle.x_best
         for particle in swarm.iter_alive():
             v = (w * particle.v + c1 * r1 * (particle.x_best - particle.x) +
                  c2 * r2 * (best_particle_x - particle.x))
@@ -242,7 +255,8 @@ def particle_swarm_optimization(
 
         best_particle = _get_best_particle(swarm)
         # stopping criteria (Stagnation)
-        if abs(best_particle.obj - prev_best_particle._obj[-2])/abs(prev_best_particle._obj[-2]) < stagnation_tol and i > 5:
+        rel_improvement = abs(best_particle.obj - prev_best_particle.obj_best)/abs(prev_best_particle.obj_best + 1e-16) < stagnation_tol
+        if rel_improvement and i > stagnation_iters + 1:
             stagnation_count += 1
             if stagnation_count >= stagnation_iters:
                 logger.info(f"Stagnation stopping criteria met! "
@@ -252,13 +266,8 @@ def particle_swarm_optimization(
             stagnation_count = 0
 
         # update best
-        if best_particle.obj < prev_best_particle._obj[-2]:
-            prev_best_particle = best_particle
-        # else:
-        #     # if new best particle is worse than previous, retain previous best.
-        #     prev_best_particle._obj[-1] = prev_best_particle._obj[-2]
-        #     prev_best_particle._x[-1] = prev_best_particle._x[-2]
-        #     best_particle = prev_best_particle
+        if best_particle.obj < prev_best_particle.obj_best:
+            prev_best_particle = copy.deepcopy(best_particle)
 
         if swarm.number_alive() == 1:
             logger.info(f"Swarm has converged to a single particle.")
@@ -267,12 +276,12 @@ def particle_swarm_optimization(
         # optimization
         _remove_similar_particles(swarm, pruning_distance)
 
-        logger.debug(f"{i} | {best_particle.obj:0.6e} | {best_particle.id_} | {best_particle.x} | {swarm.number_alive()}")
+        logger.debug(f"{i} | {prev_best_particle.obj:0.6e} | {prev_best_particle.id_} | {prev_best_particle.x} | {swarm.number_alive()}")
 
     if output == "swarm":
         return best_particle.x, swarm
     if output == "best particle":
-        return best_particle.x, best_particle.x_best
+        return best_particle.x, best_particle
     return best_particle.x
 
 
@@ -284,7 +293,16 @@ def run_local():
 
     true_min = (3.1852, 3.1298)
     bounds = np.array([0, 5, 0, 5])
-    PSO_min, swarm = particle_swarm_optimization(_obj, 25, bounds, output="swarm", logging_level=logging.DEBUG)
+    PSO_min, swarm = particle_swarm_optimization(
+        _obj,
+        25,
+        bounds,
+        c1=0.5,
+        c2=0.5,
+        pruning_distance=1,
+        output="swarm",
+        logging_level=logging.DEBUG
+    )
 
     # compute global_brute force
     n = 50

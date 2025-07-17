@@ -6,7 +6,7 @@ from scipy.integrate import solve_ivp
 from particle_swarm import particle_swarm_optimization
 from constants import get_const
 import expt_data.data as expt_data
-from code.ode_function import odefunc
+from ode_function import odefunc
 
 
 def objective(
@@ -24,12 +24,14 @@ def objective(
         c_ = const[indexes[0]]
         try:
             sol = solve_ivp(odefunc, d.t_span, y0_, args=(k, c_), t_eval=d.time, method='Radau')
+
+        # many of the k values result inf.; so just penalize the optimizer to avoid these
         except ValueError:
-            error += 10
+            error += 1
             continue
         if sol.success is False:
             # print(sol.message)
-            error += 10
+            error += 1
             continue
 
         # calculate error for each set and average
@@ -58,28 +60,47 @@ def main():
 
     # Particle Swarm optimization
     bounds = np.array((
-        (1e2, 5e4),  # k_dis
-        (0.55, 0.7),  # E_Fe
-        (1e-6, 1e-4),  # k_ORR
-        (1e8, 1e10),  # k_THOR
-        (1e0, 1e2),  # k_O2
-        (1e0, 1e2),  # k_neg_O2
+        (8e0, 1.2e5),  # k_dis
+        (0.5, 1),  # E_Fe
+        (1e-9, 2e-2),  # k_ORR
+        (1e7, 1e13),  # k_THOR
+        (1e-3, 1e4),  # k_O2
+        (1e-3, 1e4),  # k_neg_O2
     ))
     best_k = particle_swarm_optimization(
         objective,
-        20,
+        4096*4,
         bounds.flatten(),
         args=(y0_, expt_data.ALL_DATA, const_, expt_data.get_group_duplicate_datasets(expt_data.ALL_DATA)),
-        max_iter=40,
+        max_iter=100,
         logging_level=logging.DEBUG,
-        stagnation_iters=3,
-        c1=1.5,
-        c2=1.5,
+        c1=0.7,
+        c2=0.2,
         multiprocess=12,
         pruning_distance=1
     )
     print(f"Optimized k: {','.join([str(i) for i in best_k])}")
 
 
+
+def compute_single_objective():
+    # Load experimental data
+    y0_ = []
+    const_ = []
+    for d in expt_data.ALL_DATA:
+        y0 = np.array([
+            d.TEMPO_p[0] if d.TEMPO_p[0] != 0 else 0.0000001,  # TEMPO_p
+            d.TEMPO[0] if d.TEMPO[0] != 0 else 0.0000001,  # TEMPO
+            d.TEMPOH2_p[0] if d.TEMPOH2_p[0] != 0 else 0.0000001,  # TEMPOH2
+        ])
+        y0_.append(y0)
+        const_.append(get_const(d.H, d.O2, d.Fe))
+
+    k = np.array([971.346830197743,0.5802317286184792,8.158086014865025e-05,10000000000.0,71.71640322492323, 63.23939458995973])
+    obj = objective(k, y0_, expt_data.ALL_DATA, const_, expt_data.get_group_duplicate_datasets(expt_data.ALL_DATA))
+    print(obj)
+
+
 if __name__ == '__main__':
     main()
+    # compute_single_objective()
