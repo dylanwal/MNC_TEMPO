@@ -19,7 +19,7 @@ def solve_ODE(data_: expt_data.Data, k: np.ndarray, t: np.ndarray = None) -> np.
 
 
 def get_data(id_: int) -> expt_data.Data:
-    for d in expt_data.ALL_DATA:
+    for d in expt_data.ALL_DATA_CUT:
         if d.id_ == id_:
             return d
     raise ValueError("no data found")
@@ -40,8 +40,10 @@ def main():
         for row, ii in enumerate(i):
             row += 1
             data_ = get_data(ii)
-            k = np.array([971.346830197743,0.5802317286184792,8.158086014865025e-05,10000000000.0,71.71640322492323, 63.23939458995973])
-            t = np.linspace(0, data_.t_span[1], 200)
+            # k = np.array([971.346830197743,0.5802317286184792,8.158086014865025e-05,10000000000.0,71.71640322492323, 63.23939458995973])
+            k = np.array([72.42636163236209,0.6836457945967959,4.802251991995693e-09,62192.66772280553,0.6498547141709465,1e-05])
+            # k = np.array([7.74104752207566, 0.862891173493384, 8.85116656134E-09, 58183.0599974819, 0.000962922800758801, 0.00022852474646638]) # excel
+            t = np.linspace(data_.t_span[0], data_.t_span[1], 200)
             result = solve_ODE(data_, k,t)
 
             # plot fits

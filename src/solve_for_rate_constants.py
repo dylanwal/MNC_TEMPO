@@ -49,7 +49,8 @@ def main():
     # Load experimental data
     y0_ = []
     const_ = []
-    for d in expt_data.ALL_DATA:
+    data_set = expt_data.ALL_DATA_CUT
+    for d in data_set:
         y0 = np.array([
             d.TEMPO_p[0] if d.TEMPO_p[0] != 0 else 0.0000001,  # TEMPO_p
             d.TEMPO[0] if d.TEMPO[0] != 0 else 0.0000001,  # TEMPO
@@ -60,34 +61,35 @@ def main():
 
     # Particle Swarm optimization
     bounds = np.array((
-        (8e0, 1.2e5),  # k_dis
-        (0.5, 1),  # E_Fe
-        (1e-9, 2e-2),  # k_ORR
-        (1e7, 1e13),  # k_THOR
-        (1e-3, 1e4),  # k_O2
-        (1e-3, 1e4),  # k_neg_O2
+        (1e1, 1e3),  # k_dis
+        (0.8, 0.9),  # E_Fe
+        (5e-11, 1e-7),  # k_ORR
+        (1e4, 1e6),  # k_THOR
+        (1e-5, 1e-2),  # k_O2
+        (1e-5, 1e-2),  # k_neg_O2
     ))
     best_k = particle_swarm_optimization(
         objective,
-        4096*4,
+        2048*2,
         bounds.flatten(),
-        args=(y0_, expt_data.ALL_DATA, const_, expt_data.get_group_duplicate_datasets(expt_data.ALL_DATA)),
+        args=(y0_, data_set, const_, expt_data.get_group_duplicate_datasets(data_set)),
         max_iter=100,
         logging_level=logging.DEBUG,
-        c1=0.7,
-        c2=0.2,
+        w=0.2,
+        c1=0.2,
+        c2=0.1,
         multiprocess=12,
-        pruning_distance=1
+        pruning_distance=0.2
     )
     print(f"Optimized k: {','.join([str(i) for i in best_k])}")
-
 
 
 def compute_single_objective():
     # Load experimental data
     y0_ = []
     const_ = []
-    for d in expt_data.ALL_DATA:
+    data_set = expt_data.ALL_DATA_CUT
+    for d in data_set:
         y0 = np.array([
             d.TEMPO_p[0] if d.TEMPO_p[0] != 0 else 0.0000001,  # TEMPO_p
             d.TEMPO[0] if d.TEMPO[0] != 0 else 0.0000001,  # TEMPO
@@ -96,11 +98,28 @@ def compute_single_objective():
         y0_.append(y0)
         const_.append(get_const(d.H, d.O2, d.Fe))
 
-    k = np.array([971.346830197743,0.5802317286184792,8.158086014865025e-05,10000000000.0,71.71640322492323, 63.23939458995973])
-    obj = objective(k, y0_, expt_data.ALL_DATA, const_, expt_data.get_group_duplicate_datasets(expt_data.ALL_DATA))
+    k = np.array([971.346830197743,0.5802317286184792,8.158086014865025e-05,10000000000.0,71.71640322492323, 63.23939458995973]) # start at zero
+    # k = np.array([7.74104752207566, 0.862891173493384, 8.85116656134E-09, 58183.0599974819, 0.000962922800758801, 0.00022852474646638]) # excel
+    k = np.array([52.91344677312251,0.7014163982435674,8.80918581071844e-09,68262.87681890542,0.32405367754300635,0.0001])
+    obj = objective(k, y0_, data_set, const_, expt_data.get_group_duplicate_datasets(data_set))
     print(obj)
 
 
 if __name__ == '__main__':
     main()
     # compute_single_objective()
+
+"""
+34 | 2.983063e-04 | 577 | [7.15655131e+04 5.00000000e-01 2.00000000e-02 2.26389598e+12
+ 1.65840383e+03 7.71845393e+03] | 90
+29 | 2.636776e-04 | 4056 | [269.7759001037147,0.6,1e-07,26298193.292025592,26.32339541331292,0.18040851998315197] | 36
+0.000115
+99 | 1.135158e-04 | 6540 | [5.29134468e+01 7.01416398e-01 8.80918581e-09 6.82628768e+04
+ 3.24053678e-01 1.00000000e-04] | 5953
+64 | 1.093471e-04 | 2289 | [7.24263617e+01 6.83645795e-01 4.80225199e-09 6.21926671e+04
+ 6.49854712e-01 1.00000000e-05] | 6834
+ 
+ 
+ 26 | 1.282962e-04 | 92 | [6.31837882e+01 8.92337973e-01 4.29224476e-09 1.69630144e+05
+ 6.71898641e-04 3.91925481e-04] | 3376
+"""
