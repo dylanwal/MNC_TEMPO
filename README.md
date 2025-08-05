@@ -3,7 +3,7 @@ Data and code for publication #########.
 
 
 ## expt_data
-`data.py` contains all experimental data used for fitting.
+`data.py` contains all experimental data.
 
 ## src (code)
 `solve_for_rate_constants.py` runs a particle swarm optimization which minimizes the squared error between the model 
