@@ -457,6 +457,9 @@ DATA16 = Data(
 ALL_DATA = [DATA1, DATA2, DATA3, DATA4, DATA5, DATA6, DATA8, DATA9, DATA10, DATA11, DATA12, DATA13, DATA14, DATA15,
             DATA16]
 
+# first time=0 removed. See manuscript for explanation.
+ALL_DATA_CUT = [Data(d.id_, d.Fe, d.O2, d.pH, d.data[1:, :]) for d in ALL_DATA]
+
 
 def get_group_duplicate_datasets(data: list[Data]) -> list[list[int]]:
     included = np.zeros(len(data), dtype=bool)

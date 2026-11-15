@@ -1,3 +1,7 @@
+"""
+This file generates plots of the solution and generates .csv files of the solution ("fit").
+"""
+
 
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -19,7 +23,7 @@ def solve_ODE(data_: expt_data.Data, k: np.ndarray, t: np.ndarray = None) -> np.
 
 
 def get_data(id_: int) -> expt_data.Data:
-    for d in expt_data.ALL_DATA:
+    for d in expt_data.ALL_DATA_CUT:
         if d.id_ == id_:
             return d
     raise ValueError("no data found")
@@ -40,8 +44,12 @@ def main():
         for row, ii in enumerate(i):
             row += 1
             data_ = get_data(ii)
-            k = np.array([971.346830197743,0.5802317286184792,8.158086014865025e-05,10000000000.0,71.71640322492323, 63.23939458995973])
-            t = np.linspace(0, data_.t_span[1], 200)
+
+            k = np.array([61.60915375092519,0.8756606010064557,1.2638850261453523e-09,74054.30509766466,0.0008738623595637976,1.5177594298879394e-07])  # 9.781117112762855e-05
+            # k = np.array([51.19023614466019,0.6841370117068968,4.574416673092335e-09,53443.11627370598,0.6023022614719129,1.1451413865243715e-07])  # 0.00010569154345499906
+            # k = np.array([30.18150911972053,0.7395858456156232,0.000665265524722086,2691370755.48325,0.06730016751245906,11.305173711140519])  # 0.0001398248373246525
+
+            t = np.linspace(data_.t_span[0], data_.t_span[1], 200)
             result = solve_ODE(data_, k,t)
 
             # plot fits
@@ -61,7 +69,7 @@ def main():
 
             # save fits
             np.savetxt(
-                fr"..\fit_data\{data_}.csv",
+                fr"..\fit_data\fit1\{data_}.csv",
                 np.column_stack((t, result)),
                 delimiter=",",
                 header="time(s), TEMPO+, TEMPO, TEMPOH2+"

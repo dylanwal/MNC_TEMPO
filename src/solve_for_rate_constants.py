@@ -1,3 +1,7 @@
+"""
+This is the main solver to fit the data
+"""
+
 import logging
 
 import numpy as np
@@ -49,7 +53,9 @@ def main():
     # Load experimental data
     y0_ = []
     const_ = []
-    for d in expt_data.ALL_DATA:
+    data_set = expt_data.ALL_DATA_CUT
+    for d in data_set:
+        # 0.0000001 is used to avoid numerical issues of dividing by zero.
         y0 = np.array([
             d.TEMPO_p[0] if d.TEMPO_p[0] != 0 else 0.0000001,  # TEMPO_p
             d.TEMPO[0] if d.TEMPO[0] != 0 else 0.0000001,  # TEMPO
@@ -60,34 +66,36 @@ def main():
 
     # Particle Swarm optimization
     bounds = np.array((
-        (8e0, 1.2e5),  # k_dis
-        (0.5, 1),  # E_Fe
-        (1e-9, 2e-2),  # k_ORR
-        (1e7, 1e13),  # k_THOR
-        (1e-3, 1e4),  # k_O2
-        (1e-3, 1e4),  # k_neg_O2
+        (5e2, 1e3),  # k_dis
+        (0.7, 0.8),  # E_Fe
+        (5e-9, 1e-5),  # k_ORR
+        (1e4, 5e6),  # k_THOR
+        (1e-4, 1e-0),  # k_O2
+        (1e-4, 1e-0),  # k_neg_O2
     ))
     best_k = particle_swarm_optimization(
         objective,
-        4096*4,
+        2048*3,
         bounds.flatten(),
-        args=(y0_, expt_data.ALL_DATA, const_, expt_data.get_group_duplicate_datasets(expt_data.ALL_DATA)),
+        args=(y0_, data_set, const_, expt_data.get_group_duplicate_datasets(data_set)),
         max_iter=100,
         logging_level=logging.DEBUG,
-        c1=0.7,
-        c2=0.2,
+        w=0.2,
+        c1=0.2,
+        c2=0.1,
         multiprocess=12,
-        pruning_distance=1
+        pruning_distance=0.2
     )
     print(f"Optimized k: {','.join([str(i) for i in best_k])}")
 
-
-
+# quick check solution
 def compute_single_objective():
     # Load experimental data
     y0_ = []
     const_ = []
-    for d in expt_data.ALL_DATA:
+    data_set = expt_data.ALL_DATA_CUT
+    for d in data_set:
+        # 0.0000001 is used to avoid numerical issues of dividing by zero.
         y0 = np.array([
             d.TEMPO_p[0] if d.TEMPO_p[0] != 0 else 0.0000001,  # TEMPO_p
             d.TEMPO[0] if d.TEMPO[0] != 0 else 0.0000001,  # TEMPO
@@ -96,11 +104,28 @@ def compute_single_objective():
         y0_.append(y0)
         const_.append(get_const(d.H, d.O2, d.Fe))
 
-    k = np.array([971.346830197743,0.5802317286184792,8.158086014865025e-05,10000000000.0,71.71640322492323, 63.23939458995973])
-    obj = objective(k, y0_, expt_data.ALL_DATA, const_, expt_data.get_group_duplicate_datasets(expt_data.ALL_DATA))
+    k = np.array([61.60915375092519,0.8756606010064557,1.2638850261453523e-09,74054.30509766466,0.0008738623595637976,1.5177594298879394e-07])
+
+    bounds = np.array([(10**(np.log10(i)-3), 10**(np.log10(i)+3)) for i in k])
+    from scipy.optimize import minimize
+    res = minimize(objective, x0=k,
+                   args=(y0_, data_set, const_, expt_data.get_group_duplicate_datasets(data_set)),
+                   method='Nelder-Mead', bounds=bounds,
+                   )
+    print(res)
+    best_k = res.x
+
+    print(f"Optimized k: {','.join([str(i) for i in best_k])}")
+
+    obj = objective(k, y0_, data_set, const_, expt_data.get_group_duplicate_datasets(data_set))
     print(obj)
 
 
 if __name__ == '__main__':
     main()
     # compute_single_objective()
+
+"""
+best solutions:
+k = np.array([61.60915375092519,0.8756606010064557,1.2638850261453523e-09,74054.30509766466,0.0008738623595637976,1.5177594298879394e-07])  # 9.781117112762855e-05
+"""

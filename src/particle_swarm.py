@@ -161,7 +161,7 @@ def particle_swarm_optimization(
         bounds: np.ndarray,
         args: tuple = None,
         max_iter: int = 100,
-        w: float = 0.65,
+        w: float = 0.5,
         c1: float = 1.5,
         c2: float = 1.5,
         rng: np.random.Generator = np.random.default_rng(seed=0),
@@ -245,8 +245,7 @@ def particle_swarm_optimization(
         r1, r2 = rng.random(2)
         best_particle_x = prev_best_particle.x_best
         for particle in swarm.iter_alive():
-            v = (w * particle.v + c1 * r1 * (particle.x_best - particle.x) +
-                 c2 * r2 * (best_particle_x - particle.x))
+            v = w * particle.v + c1 * r1 * (particle.x_best - particle.x) + c2 * r2 * (best_particle_x - particle.x)
             x = particle.x + v
             x = _check_bounds(x, bounds)
             particle.set_xv(x, v)
